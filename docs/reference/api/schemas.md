@@ -298,10 +298,12 @@
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
       "owner_name": "string",
       "status": "pending",
+      "task_status": "pending",
       "template_display_name": "string",
       "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "updated_at": "2019-08-24T14:15:22Z",
       "workspace_agent_health": {
         "healthy": false,
@@ -7690,10 +7692,12 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_name": "string",
   "status": "pending",
+  "task_status": "pending",
   "template_display_name": "string",
   "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
   "updated_at": "2019-08-24T14:15:22Z",
   "workspace_agent_health": {
     "healthy": false,
@@ -7713,26 +7717,28 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                        | Type                                                                 | Required | Restrictions | Description |
-|-----------------------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `created_at`                | string                                                               | false    |              |             |
-| `current_state`             | [codersdk.TaskStateEntry](#codersdktaskstateentry)                   | false    |              |             |
-| `id`                        | string                                                               | false    |              |             |
-| `initial_prompt`            | string                                                               | false    |              |             |
-| `name`                      | string                                                               | false    |              |             |
-| `organization_id`           | string                                                               | false    |              |             |
-| `owner_id`                  | string                                                               | false    |              |             |
-| `owner_name`                | string                                                               | false    |              |             |
-| `status`                    | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              |             |
-| `template_display_name`     | string                                                               | false    |              |             |
-| `template_icon`             | string                                                               | false    |              |             |
-| `template_id`               | string                                                               | false    |              |             |
-| `template_name`             | string                                                               | false    |              |             |
-| `updated_at`                | string                                                               | false    |              |             |
-| `workspace_agent_health`    | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)       | false    |              |             |
-| `workspace_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
-| `workspace_agent_lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
-| `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |             |
+| Name                        | Type                                                                 | Required | Restrictions | Description       |
+|-----------------------------|----------------------------------------------------------------------|----------|--------------|-------------------|
+| `created_at`                | string                                                               | false    |              |                   |
+| `current_state`             | [codersdk.TaskStateEntry](#codersdktaskstateentry)                   | false    |              |                   |
+| `id`                        | string                                                               | false    |              |                   |
+| `initial_prompt`            | string                                                               | false    |              |                   |
+| `name`                      | string                                                               | false    |              |                   |
+| `organization_id`           | string                                                               | false    |              |                   |
+| `owner_id`                  | string                                                               | false    |              |                   |
+| `owner_name`                | string                                                               | false    |              |                   |
+| `status`                    | [codersdk.WorkspaceStatus](#codersdkworkspacestatus)                 | false    |              | Status JSON name. |
+| `task_status`               | [codersdk.TaskStatus](#codersdktaskstatus)                           | false    |              |                   |
+| `template_display_name`     | string                                                               | false    |              |                   |
+| `template_icon`             | string                                                               | false    |              |                   |
+| `template_id`               | string                                                               | false    |              |                   |
+| `template_name`             | string                                                               | false    |              |                   |
+| `template_version_id`       | string                                                               | false    |              |                   |
+| `updated_at`                | string                                                               | false    |              |                   |
+| `workspace_agent_health`    | [codersdk.WorkspaceAgentHealth](#codersdkworkspaceagenthealth)       | false    |              |                   |
+| `workspace_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |                   |
+| `workspace_agent_lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |                   |
+| `workspace_id`              | [uuid.NullUUID](#uuidnulluuid)                                       | false    |              |                   |
 
 #### Enumerated Values
 
@@ -7855,6 +7861,25 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `state`     | [codersdk.TaskState](#codersdktaskstate) | false    |              |             |
 | `timestamp` | string                                   | false    |              |             |
 | `uri`       | string                                   | false    |              |             |
+
+## codersdk.TaskStatus
+
+```json
+"pending"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value          |
+|----------------|
+| `pending`      |
+| `initializing` |
+| `active`       |
+| `paused`       |
+| `unknown`      |
+| `error`        |
 
 ## codersdk.TelemetryConfig
 

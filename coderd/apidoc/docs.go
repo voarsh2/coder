@@ -17562,6 +17562,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
+                    "description": "TODO(mafredri): JSON name.",
                     "enum": [
                         "pending",
                         "starting",
@@ -17580,6 +17581,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "task_status": {
+                    "$ref": "#/definitions/codersdk.TaskStatus"
+                },
                 "template_display_name": {
                     "type": "string"
                 },
@@ -17592,6 +17596,10 @@ const docTemplate = `{
                 },
                 "template_name": {
                     "type": "string"
+                },
+                "template_version_id": {
+                    "type": "string",
+                    "format": "uuid"
                 },
                 "updated_at": {
                     "type": "string",
@@ -17701,6 +17709,25 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.TaskStatus": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "initializing",
+                "active",
+                "paused",
+                "unknown",
+                "error"
+            ],
+            "x-enum-varnames": [
+                "TaskStatusPending",
+                "TaskStatusInitializing",
+                "TaskStatusActive",
+                "TaskStatusPaused",
+                "TaskStatusUnknown",
+                "TaskStatusError"
+            ]
         },
         "codersdk.TelemetryConfig": {
             "type": "object",

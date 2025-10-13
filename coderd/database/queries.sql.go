@@ -12508,7 +12508,7 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 }
 
 const getTaskByID = `-- name: GetTaskByID :one
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status FROM tasks_with_status WHERE id = $1::uuid
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, workspace_build_number, workspace_agent_id, workspace_app_id, status FROM tasks_with_status WHERE id = $1::uuid
 `
 
 func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error) {
@@ -12525,13 +12525,16 @@ func (q *sqlQuerier) GetTaskByID(ctx context.Context, id uuid.UUID) (Task, error
 		&i.Prompt,
 		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.WorkspaceBuildNumber,
+		&i.WorkspaceAgentID,
+		&i.WorkspaceAppID,
 		&i.Status,
 	)
 	return i, err
 }
 
 const getTaskByWorkspaceID = `-- name: GetTaskByWorkspaceID :one
-SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, status FROM tasks_with_status WHERE workspace_id = $1::uuid
+SELECT id, organization_id, owner_id, name, workspace_id, template_version_id, template_parameters, prompt, created_at, deleted_at, workspace_build_number, workspace_agent_id, workspace_app_id, status FROM tasks_with_status WHERE workspace_id = $1::uuid
 `
 
 func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (Task, error) {
@@ -12548,6 +12551,9 @@ func (q *sqlQuerier) GetTaskByWorkspaceID(ctx context.Context, workspaceID uuid.
 		&i.Prompt,
 		&i.CreatedAt,
 		&i.DeletedAt,
+		&i.WorkspaceBuildNumber,
+		&i.WorkspaceAgentID,
+		&i.WorkspaceAppID,
 		&i.Status,
 	)
 	return i, err
@@ -12583,6 +12589,44 @@ func (q *sqlQuerier) InsertTask(ctx context.Context, arg InsertTaskParams) (Task
 		arg.Prompt,
 		arg.CreatedAt,
 	)
+	var i TaskTable
+	err := row.Scan(
+		&i.ID,
+		&i.OrganizationID,
+		&i.OwnerID,
+		&i.Name,
+		&i.WorkspaceID,
+		&i.TemplateVersionID,
+		&i.TemplateParameters,
+		&i.Prompt,
+		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const updateTaskWorkspaceID = `-- name: UpdateTaskWorkspaceID :one
+UPDATE tasks
+SET workspace_id = $2
+FROM
+	workspaces w,
+	template_versions tv
+WHERE tasks.id = $1
+	-- Protect against updates that break the data integrity.
+	AND tasks.workspace_id IS NULL
+	AND w.id = $2
+	AND tv.id = tasks.template_version_id
+	AND w.template_id = tv.template_id
+RETURNING tasks.id, tasks.organization_id, tasks.owner_id, tasks.name, tasks.workspace_id, tasks.template_version_id, tasks.template_parameters, tasks.prompt, tasks.created_at, tasks.deleted_at
+`
+
+type UpdateTaskWorkspaceIDParams struct {
+	ID          uuid.UUID     `db:"id" json:"id"`
+	WorkspaceID uuid.NullUUID `db:"workspace_id" json:"workspace_id"`
+}
+
+func (q *sqlQuerier) UpdateTaskWorkspaceID(ctx context.Context, arg UpdateTaskWorkspaceIDParams) (TaskTable, error) {
+	row := q.db.QueryRowContext(ctx, updateTaskWorkspaceID, arg.ID, arg.WorkspaceID)
 	var i TaskTable
 	err := row.Scan(
 		&i.ID,

@@ -3342,6 +3342,7 @@ export interface Task {
 	readonly owner_name: string;
 	readonly name: string;
 	readonly template_id: string;
+	readonly template_version_id: string;
 	readonly template_name: string;
 	readonly template_display_name: string;
 	readonly template_icon: string;
@@ -3350,6 +3351,7 @@ export interface Task {
 	readonly workspace_agent_lifecycle: WorkspaceAgentLifecycle | null;
 	readonly workspace_agent_health: WorkspaceAgentHealth | null;
 	readonly initial_prompt: string;
+	readonly task_status: TaskStatus;
 	readonly status: WorkspaceStatus;
 	readonly current_state: TaskStateEntry | null;
 	readonly created_at: string;
@@ -3395,6 +3397,24 @@ export const TaskStates: TaskState[] = [
 	"failed",
 	"idle",
 	"working",
+];
+
+// From codersdk/aitasks.go
+export type TaskStatus =
+	| "active"
+	| "error"
+	| "initializing"
+	| "paused"
+	| "pending"
+	| "unknown";
+
+export const TaskStatuses: TaskStatus[] = [
+	"active",
+	"error",
+	"initializing",
+	"paused",
+	"pending",
+	"unknown",
 ];
 
 // From codersdk/aitasks.go

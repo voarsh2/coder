@@ -1951,6 +1951,9 @@ CREATE VIEW tasks_with_status AS
     tasks.prompt,
     tasks.created_at,
     tasks.deleted_at,
+    task_app.workspace_build_number,
+    task_app.workspace_agent_id,
+    task_app.workspace_app_id,
         CASE
             WHEN ((tasks.workspace_id IS NULL) OR (latest_build.job_status IS NULL)) THEN 'pending'::task_status
             WHEN (latest_build.job_status = 'failed'::provisioner_job_status) THEN 'error'::task_status

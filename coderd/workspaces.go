@@ -388,7 +388,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 		AvatarURL: member.AvatarURL,
 	}
 
-	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r)
+	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r, nil)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 		return
@@ -484,7 +484,7 @@ func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 
 	defer commitAudit()
 
-	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r)
+	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, req, r, nil)
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 		return
@@ -499,6 +499,13 @@ type workspaceOwner struct {
 	AvatarURL string
 }
 
+type createWorkspaceOptions struct {
+	// TaskID is the ID of the task to link to this workspace. If provided, the
+	// workspace will be linked to the task after creation, but before the
+	// workspace build is created.
+	TaskID uuid.UUID
+}
+
 func createWorkspace(
 	ctx context.Context,
 	auditReq *audit.Request[database.WorkspaceTable],
@@ -507,6 +514,7 @@ func createWorkspace(
 	owner workspaceOwner,
 	req codersdk.CreateWorkspaceRequest,
 	r *http.Request,
+	opts *createWorkspaceOptions,
 ) (codersdk.Workspace, error) {
 	template, err := requestTemplate(ctx, req, api.Database)
 	if err != nil {
@@ -727,6 +735,19 @@ func createWorkspace(
 		workspace, err = db.GetWorkspaceByID(ctx, workspaceID)
 		if err != nil {
 			return xerrors.Errorf("get workspace by ID: %w", err)
+		}
+
+		// Link task to workspace if this workspace is being created for a task.
+		// This must happen before the workspace build is created so that
+		// wsbuilder can find the task and create the task_workspace_apps entry.
+		if opts != nil && opts.TaskID != uuid.Nil {
+			_, err = db.UpdateTaskWorkspaceID(ctx, database.UpdateTaskWorkspaceIDParams{
+				ID:          opts.TaskID,
+				WorkspaceID: uuid.NullUUID{UUID: workspace.ID, Valid: true},
+			})
+			if err != nil {
+				return xerrors.Errorf("link task to workspace: %w", err)
+			}
 		}
 
 		builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart, *api.BuildUsageChecker.Load()).

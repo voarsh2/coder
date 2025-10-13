@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -162,6 +163,13 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		},
 	}
 
+	// Fetch template to get organization_id for task creation.
+	template, err := requestTemplate(ctx, createReq, api.Database)
+	if err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+
 	var owner workspaceOwner
 	if mems.User != nil {
 		// This user fetch is an optimization path for the most common case of creating a
@@ -178,17 +186,6 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		// A task can still be created if the caller can read the organization
 		// member. The organization is required, which can be sourced from the
 		// template.
-		//
-		// TODO: This code gets called twice for each workspace build request.
-		//   This is inefficient and costs at most 2 extra RTTs to the DB.
-		//   This can be optimized. It exists as it is now for code simplicity.
-		//   The most common case is to create a workspace for 'Me'. Which does
-		//   not enter this code branch.
-		template, err := requestTemplate(ctx, createReq, api.Database)
-		if err != nil {
-			httperror.WriteResponseError(ctx, rw, err)
-			return
-		}
 
 		// If the caller can find the organization membership in the same org
 		// as the template, then they can continue.
@@ -208,6 +205,26 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Create task record in the database before creating the workspace so that
+	// we can request that the workspace be linked to it after creation.
+	dbTaskInsert, err := api.Database.InsertTask(ctx, database.InsertTaskParams{
+		OrganizationID:     template.OrganizationID,
+		OwnerID:            owner.ID,
+		Name:               taskName,
+		WorkspaceID:        uuid.NullUUID{}, // Will be set after workspace creation.
+		TemplateVersionID:  req.TemplateVersionID,
+		TemplateParameters: []byte("{}"),
+		Prompt:             req.Input,
+		CreatedAt:          dbtime.Now(),
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error creating task.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	aReq, commitAudit := audit.InitRequest[database.WorkspaceTable](rw, &audit.RequestParams{
 		Audit:   *auditor,
 		Log:     api.Logger,
@@ -218,14 +235,85 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		},
 	})
 	defer commitAudit()
-	w, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, createReq, r)
+	workspace, err := createWorkspace(ctx, aReq, apiKey.UserID, api, owner, createReq, r, &createWorkspaceOptions{
+		TaskID: dbTaskInsert.ID,
+	})
 	if err != nil {
 		httperror.WriteResponseError(ctx, rw, err)
 		return
 	}
 
-	task := taskFromWorkspace(w, req.Input)
-	httpapi.Write(ctx, rw, http.StatusCreated, task)
+	// Fetch the task to get the current status (post workspace creation).
+	dbTask, err := api.Database.GetTaskByID(ctx, dbTaskInsert.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching task.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusCreated, taskFromDBTaskAndWorkspace(dbTask, workspace))
+}
+
+// taskFromDBTaskAndWorkspace creates a codersdk.Task response from the task
+// database record and workspace.
+func taskFromDBTaskAndWorkspace(dbTask database.Task, ws codersdk.Workspace) codersdk.Task {
+	var taskAgentLifecycle *codersdk.WorkspaceAgentLifecycle
+	var taskAgentHealth *codersdk.WorkspaceAgentHealth
+
+	// If we have an agent ID from the task, find the agent details in the
+	// workspace.
+	if dbTask.WorkspaceAgentID.Valid {
+		for _, resource := range ws.LatestBuild.Resources {
+			for _, agent := range resource.Agents {
+				if agent.ID == dbTask.WorkspaceAgentID.UUID {
+					taskAgentLifecycle = &agent.LifecycleState
+					taskAgentHealth = &agent.Health
+					break
+				}
+			}
+		}
+	}
+
+	// Ignore 'latest app status' if it is older than the latest build and the
+	// latest build is a 'start' transition. This ensures that you don't show a
+	// stale app status from a previous build. For stop transitions, there is
+	// still value in showing the latest app status.
+	var currentState *codersdk.TaskStateEntry
+	if ws.LatestAppStatus != nil {
+		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {
+			currentState = &codersdk.TaskStateEntry{
+				Timestamp: ws.LatestAppStatus.CreatedAt,
+				State:     codersdk.TaskState(ws.LatestAppStatus.State),
+				Message:   ws.LatestAppStatus.Message,
+				URI:       ws.LatestAppStatus.URI,
+			}
+		}
+	}
+
+	return codersdk.Task{
+		ID:                      dbTask.ID,
+		OrganizationID:          dbTask.OrganizationID,
+		OwnerID:                 dbTask.OwnerID,
+		OwnerName:               ws.OwnerName,
+		Name:                    dbTask.Name,
+		TemplateID:              ws.TemplateID,
+		TemplateVersionID:       dbTask.TemplateVersionID,
+		TemplateName:            ws.TemplateName,
+		TemplateDisplayName:     ws.TemplateDisplayName,
+		TemplateIcon:            ws.TemplateIcon,
+		WorkspaceID:             dbTask.WorkspaceID,
+		WorkspaceAgentID:        dbTask.WorkspaceAgentID,
+		WorkspaceAgentLifecycle: taskAgentLifecycle,
+		WorkspaceAgentHealth:    taskAgentHealth,
+		InitialPrompt:           dbTask.Prompt,
+		TaskStatus:              codersdk.TaskStatus(dbTask.Status),
+		Status:                  ws.LatestBuild.Status,
+		CurrentState:            currentState,
+		CreatedAt:               dbTask.CreatedAt,
+		UpdatedAt:               ws.UpdatedAt,
+	}
 }
 
 func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Task {
@@ -253,9 +341,10 @@ func taskFromWorkspace(ws codersdk.Workspace, initialPrompt string) codersdk.Tas
 		}
 	}
 
-	// Ignore 'latest app status' if it is older than the latest build and the latest build is a 'start' transition.
-	// This ensures that you don't show a stale app status from a previous build.
-	// For stop transitions, there is still value in showing the latest app status.
+	// Ignore 'latest app status' if it is older than the latest build and the
+	// latest build is a 'start' transition. This ensures that you don't show a
+	// stale app status from a previous build. For stop transitions, there is
+	// still value in showing the latest app status.
 	var currentState *codersdk.TaskStateEntry
 	if ws.LatestAppStatus != nil {
 		if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart || ws.LatestAppStatus.CreatedAt.After(ws.LatestBuild.CreatedAt) {

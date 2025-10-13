@@ -89,6 +89,20 @@ func (c *ExperimentalClient) CreateTask(ctx context.Context, user string, reques
 	return task, nil
 }
 
+// TaskStatus represents the status of a task.
+//
+// Experimental: This type is experimental and may change in the future.
+type TaskStatus string
+
+const (
+	TaskStatusPending      TaskStatus = "pending"
+	TaskStatusInitializing TaskStatus = "initializing"
+	TaskStatusActive       TaskStatus = "active"
+	TaskStatusPaused       TaskStatus = "paused"
+	TaskStatusUnknown      TaskStatus = "unknown"
+	TaskStatusError        TaskStatus = "error"
+)
+
 // TaskState represents the high-level lifecycle of a task.
 //
 // Experimental: This type is experimental and may change in the future.
@@ -112,6 +126,7 @@ type Task struct {
 	OwnerName               string                   `json:"owner_name" table:"owner name"`
 	Name                    string                   `json:"name" table:"name,default_sort"`
 	TemplateID              uuid.UUID                `json:"template_id" format:"uuid" table:"template id"`
+	TemplateVersionID       uuid.UUID                `json:"template_version_id" format:"uuid" table:"template version id"`
 	TemplateName            string                   `json:"template_name" table:"template name"`
 	TemplateDisplayName     string                   `json:"template_display_name" table:"template display name"`
 	TemplateIcon            string                   `json:"template_icon" table:"template icon"`
@@ -120,7 +135,8 @@ type Task struct {
 	WorkspaceAgentLifecycle *WorkspaceAgentLifecycle `json:"workspace_agent_lifecycle" table:"workspace agent lifecycle"`
 	WorkspaceAgentHealth    *WorkspaceAgentHealth    `json:"workspace_agent_health" table:"workspace agent health"`
 	InitialPrompt           string                   `json:"initial_prompt" table:"initial prompt"`
-	Status                  WorkspaceStatus          `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted" table:"status"`
+	TaskStatus              TaskStatus               `json:"task_status" table:"task status"`
+	Status                  WorkspaceStatus          `json:"status" enums:"pending,starting,running,stopping,stopped,failed,canceling,canceled,deleting,deleted" table:"status"` // TODO(mafredri): JSON name.
 	CurrentState            *TaskStateEntry          `json:"current_state" table:"cs,recursive_inline"`
 	CreatedAt               time.Time                `json:"created_at" format:"date-time" table:"created at"`
 	UpdatedAt               time.Time                `json:"updated_at" format:"date-time" table:"updated at"`
