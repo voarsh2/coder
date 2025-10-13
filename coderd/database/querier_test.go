@@ -7314,3 +7314,65 @@ func TestUsageEventsTrigger(t *testing.T) {
 		require.Len(t, rows, 0)
 	})
 }
+
+func TestListTasks(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         user.ID,
+	})
+
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		CreatedBy:      user.ID,
+		OrganizationID: org.ID,
+	})
+	tpl := dbgen.Template(t, db, database.Template{
+		CreatedBy:       user.ID,
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+	})
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     tpl.ID,
+	})
+	pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{})
+	sidebarAppID := uuid.New()
+	_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		JobID:             pj.ID,
+		TemplateVersionID: tv.ID,
+		WorkspaceID:       ws.ID,
+	})
+	wr := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: pj.ID,
+	})
+	agt := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: wr.ID,
+	})
+	wa := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+		ID:      sidebarAppID,
+		AgentID: agt.ID,
+	})
+	t1 := dbgen.Task(t, db, database.TaskTable{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		Prompt:            testutil.GetRandomName(t),
+		TemplateVersionID: tv.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: ws.ID, Valid: true},
+	})
+	_ = dbgen.TaskWorkspaceApp(t, db, database.TaskWorkspaceApp{
+		TaskID:           t1.ID,
+		WorkspaceAgentID: uuid.NullUUID{Valid: true, UUID: agt.ID},
+		WorkspaceAppID:   uuid.NullUUID{Valid: true, UUID: wa.ID},
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	tasks, err := db.ListTasks(ctx, database.ListTasksParams{})
+	require.NoError(t, err)
+	require.Len(t, tasks, 1)
+	require.Equal(t, tasks[0].ID, t1.ID)
+}
