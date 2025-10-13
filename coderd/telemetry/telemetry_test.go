@@ -151,6 +151,12 @@ func TestTelemetry(t *testing.T) {
 			HasAITask:          sql.NullBool{Valid: true, Bool: true},
 			AITaskSidebarAppID: uuid.NullUUID{Valid: true, UUID: taskWsApp.ID},
 		})
+		task := dbgen.Task(t, db, database.TaskTable{
+			OwnerID:           user.ID,
+			OrganizationID:    org.ID,
+			WorkspaceID:       uuid.NullUUID{Valid: true, UUID: taskWs.ID},
+			TemplateVersionID: taskTV.ID,
+		})
 
 		group := dbgen.Group(t, db, database.Group{
 			OrganizationID: org.ID,
@@ -220,6 +226,8 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, wsa.Subsystems, 2)
 		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystems[0])
 		require.Equal(t, string(database.WorkspaceAgentSubsystemExectrace), wsa.Subsystems[1])
+		require.Len(t, snapshot.Tasks, 1)
+		require.Equal(t, snapshot.Tasks[0].ID, task.ID)
 
 		require.True(t, slices.ContainsFunc(snapshot.TemplateVersions, func(ttv telemetry.TemplateVersion) bool {
 			if ttv.ID != taskTV.ID {

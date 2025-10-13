@@ -19,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/elastic/go-sysinfo"
 	"github.com/google/uuid"
@@ -730,6 +731,16 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		dbTasks, err := r.options.Database.ListTasks(ctx, database.ListTasksParams{})
+		if err != nil {
+			return err
+		}
+		for _, dbTask := range dbTasks {
+			snapshot.Tasks = append(snapshot.Tasks, ConvertTask(dbTask))
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -911,6 +922,22 @@ func ConvertWorkspaceResourceMetadata(metadata database.WorkspaceResourceMetadat
 		ResourceID: metadata.WorkspaceResourceID,
 		Key:        metadata.Key,
 		Sensitive:  metadata.Sensitive,
+	}
+}
+
+// ConvertTask anonymizes a Task.
+func ConvertTask(task database.Task) Task {
+	return Task{
+		ID:                task.ID,
+		OrganizationID:    task.OrganizationID,
+		OwnerID:           task.OwnerID,
+		Name:              task.Name,
+		WorkspaceID:       task.WorkspaceID,
+		TemplateVersionID: task.TemplateVersionID,
+		PromptHash:        fmt.Sprintf("%x", sha256.New().Sum([]byte(task.Prompt))),
+		PromptLength:      utf8.RuneCountInString(task.Prompt),
+		CreatedAt:         task.CreatedAt,
+		Status:            string(task.Status),
 	}
 }
 
@@ -1205,6 +1232,7 @@ type Snapshot struct {
 	Workspaces                           []Workspace                           `json:"workspaces"`
 	NetworkEvents                        []NetworkEvent                        `json:"network_events"`
 	Organizations                        []Organization                        `json:"organizations"`
+	Tasks                                []Task                                `json:"tasks"`
 	TelemetryItems                       []TelemetryItem                       `json:"telemetry_items"`
 	UserTailnetConnections               []UserTailnetConnection               `json:"user_tailnet_connections"`
 	PrebuiltWorkspaces                   []PrebuiltWorkspace                   `json:"prebuilt_workspaces"`
@@ -1751,6 +1779,19 @@ type Organization struct {
 	ID        uuid.UUID `json:"id"`
 	IsDefault bool      `json:"is_default"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type Task struct {
+	ID                uuid.UUID     `json:"id"`
+	OrganizationID    uuid.UUID     `json:"organization_id"`
+	OwnerID           uuid.UUID     `json:"owner_id"`
+	Name              string        `json:"name"`
+	WorkspaceID       uuid.NullUUID `json:"workspace_id"`
+	TemplateVersionID uuid.UUID     `json:"template_version_id"`
+	PromptHash        string        `json:"hashed_prompt"`
+	PromptLength      int           `json:"prompt_length"`
+	CreatedAt         time.Time     `json:"created_at"`
+	Status            string        `json:"status"`
 }
 
 type telemetryItemKey string
