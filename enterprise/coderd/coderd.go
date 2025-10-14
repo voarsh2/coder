@@ -1001,7 +1001,8 @@ func (api *API) CheckBuildUsage(ctx context.Context, store database.Store, templ
 	// When unlicensed, we need to check that we haven't breached the managed agent
 	// limit.
 	// Unlicensed deployments are allowed to use unlimited managed agents.
-	if api.Entitlements.HasLicense() {
+	// Bypassed: Always allow unlimited managed agents
+	if false { // api.Entitlements.HasLicense() {
 		managedAgentLimit, ok := api.Entitlements.Feature(codersdk.FeatureManagedAgentLimit)
 		if !ok || !managedAgentLimit.Enabled || managedAgentLimit.Limit == nil || managedAgentLimit.UsagePeriod == nil {
 			return wsbuilder.UsageCheckResponse{

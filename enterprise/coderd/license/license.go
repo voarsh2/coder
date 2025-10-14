@@ -583,13 +583,14 @@ func LicensesEntitlements(
 	}
 
 	// Wrap up by disabling all features that are not entitled.
-	for _, featureName := range codersdk.FeatureNames {
-		feature := entitlements.Features[featureName]
-		if feature.Entitlement == codersdk.EntitlementNotEntitled {
-			feature.Enabled = false
-			entitlements.Features[featureName] = feature
-		}
-	}
+	// Bypassed: All features are now enabled by default
+	// for _, featureName := range codersdk.FeatureNames {
+	// 	feature := entitlements.Features[featureName]
+	// 	if feature.Entitlement == codersdk.EntitlementNotEntitled {
+	// 		feature.Enabled = false
+	// 		entitlements.Features[featureName] = feature
+	// 	}
+	// }
 	entitlements.RefreshedAt = now
 
 	return entitlements, nil
