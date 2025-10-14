@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  coder:
+    build:
+      context: ..
+      dockerfile: custom/Dockerfile.build
+      args:
+        - VERSION=${VERSION:-latest}
+        - ARCH=${ARCH:-amd64}
+    image: coder-custom:latest
+    container_name: coder-custom
+    ports:
+      - "3000:3000"
+    environment:
+      - CODER_ACCESS_URL=http://localhost:3000
+      - CODER_PG_CONNECTION_URL=postgresql://coder:password@postgres:5432/coder?sslmode=disable
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - coder-network
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: coder-postgres
+    environment:
+      - POSTGRES_DB=coder
+      - POSTGRES_USER=coder
+      - POSTGRES_PASSWORD=password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - coder-network
+
+volumes:
+  postgres-data:
+
+networks:
+  coder-network:
+    driver: bridge
