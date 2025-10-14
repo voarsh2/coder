@@ -732,7 +732,10 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		dbTasks, err := r.options.Database.ListTasks(ctx, database.ListTasksParams{})
+		dbTasks, err := r.options.Database.ListTasks(ctx, database.ListTasksParams{
+			OwnerID:        uuid.Nil,
+			OrganizationID: uuid.Nil,
+		})
 		if err != nil {
 			return err
 		}
