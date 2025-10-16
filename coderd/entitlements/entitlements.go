@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
 	"slices"
 	"sync"
 	"time"
@@ -39,14 +40,43 @@ func New() *Set {
 		},
 		right2Update: make(chan struct{}, 1),
 	}
-	// Ensure all features are present in the entitlements. Our frontend
-	// expects this.
-	for _, featureName := range codersdk.FeatureNames {
-		s.entitlements.AddFeature(featureName, codersdk.Feature{
-			Entitlement: codersdk.EntitlementEntitled,
-			Enabled:     true,
-		})
+	
+	// Check for license bypass environment variable
+	if os.Getenv("CODER_LICENSE_BYPASS") == "true" {
+		// Enable all features with unlimited limits
+		for _, featureName := range codersdk.FeatureNames {
+			feature := codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled: true,
+			}
+			
+			// Set unlimited limits for features that use limits
+			if featureName.UsesLimit() {
+				unlimited := int64(999999)
+				feature.Limit = &unlimited
+			}
+			
+			// Set default values for usage period features
+			if featureName.UsesUsagePeriod() {
+				unlimited := int64(999999)
+				feature.Limit = &unlimited
+				feature.SoftLimit = &unlimited
+			}
+			
+			s.entitlements.AddFeature(featureName, feature)
+		}
+	} else {
+		// Default behavior
+		// Ensure all features are present in the entitlements. Our frontend
+		// expects this.
+		for _, featureName := range codersdk.FeatureNames {
+			s.entitlements.AddFeature(featureName, codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+			})
+		}
 	}
+	
 	s.right2Update <- struct{}{} // one token, serialized updates
 	return s
 }

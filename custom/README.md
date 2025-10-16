@@ -176,3 +176,6 @@ This custom build disables license checking, which means all enterprise features
 3. **Support**: This build is not officially supported by Coder
 
 Use this custom build only in environments where you have the authority to disable license checking.
+
+# Docker Run
+docker run -d --name coder-debug -p 3000:3000 -e CODER_HTTP_ADDRESS=0.0.0.0:3000 -e CODER_ACCESS_URL=http://localhost:3000 -e CODER_TELEMETRY_ENABLE=false -e CODER_TUNNEL=false coder-custom:latest
