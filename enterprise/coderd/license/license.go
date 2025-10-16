@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"time"
 
@@ -83,6 +84,11 @@ func Entitlements(
 	enablements map[codersdk.FeatureName]bool,
 ) (codersdk.Entitlements, error) {
 	now := time.Now()
+	
+	// Check for license bypass environment variable
+	if os.Getenv("CODER_LICENSE_BYPASS") == "true" {
+		return generateAllFeaturesEnabled(now), nil
+	}
 
 	// nolint:gocritic // Getting unexpired licenses is a system function.
 	licenses, err := db.GetUnexpiredLicenses(dbauthz.AsSystemRestricted(ctx))
@@ -616,6 +622,44 @@ var (
 )
 
 type Features map[codersdk.FeatureName]int64
+
+// generateAllFeaturesEnabled returns entitlements with all features enabled and unlimited limits
+func generateAllFeaturesEnabled(now time.Time) codersdk.Entitlements {
+	entitlements := codersdk.Entitlements{
+		Features: make(map[codersdk.FeatureName]codersdk.Feature),
+		Warnings: []string{},
+		Errors:   []string{},
+		HasLicense: true,
+		Trial: false,
+		RequireTelemetry: false,
+		RefreshedAt: now,
+	}
+	
+	// Enable all features with appropriate limits
+	for _, featureName := range codersdk.FeatureNames {
+		feature := codersdk.Feature{
+			Entitlement: codersdk.EntitlementEntitled,
+			Enabled: true,
+		}
+		
+		// Set unlimited limits for features that use limits
+		if featureName.UsesLimit() {
+			unlimited := int64(999999)
+			feature.Limit = &unlimited
+		}
+		
+		// Set default values for usage period features
+		if featureName.UsesUsagePeriod() {
+			unlimited := int64(999999)
+			feature.Limit = &unlimited
+			feature.SoftLimit = &unlimited
+		}
+		
+		entitlements.AddFeature(featureName, feature)
+	}
+	
+	return entitlements
+}
 
 type usageLimit struct {
 	Soft *int64

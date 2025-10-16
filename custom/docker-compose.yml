@@ -13,6 +13,7 @@ services:
     environment:
       - CODER_ACCESS_URL=${CODER_ACCESS_URL:-http://localhost:3000}
       - CODER_PG_CONNECTION_URL=${CODER_PG_CONNECTION_URL:-postgresql://coder:password@postgres:5432/coder?sslmode=disable}
+      - CODER_LICENSE_BYPASS=true
     depends_on:
       - postgres
     restart: unless-stopped
