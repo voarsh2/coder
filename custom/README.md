@@ -179,3 +179,18 @@ Use this custom build only in environments where you have the authority to disab
 
 # Docker Run
 docker run -d --name coder-debug -p 3000:3000 -e CODER_HTTP_ADDRESS=0.0.0.0:3000 -e CODER_ACCESS_URL=http://localhost:3000 -e CODER_TELEMETRY_ENABLE=false -e CODER_TUNNEL=false coder-custom:latest
+
+# Configure registry:
+sudo nano /etc/docker/daemon.json
+
+Add: {"insecure-registries": ["192.168.96.61:30009"]}
+
+sudo systemctl restart docker
+
+# Provide username and password on the command line
+docker login -u your-username -p your-password 192.168.96.61:30009
+
+docker tag coder-custom:2.27.0-devel_faffc49e2 192.168.96.61:30009/coder-custom:2.27.0-devel_faffc49e2
+
+docker push 192.168.96.61:30009/coder-custom:2.27.0-devel_faffc49e2
+
