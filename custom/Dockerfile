@@ -71,19 +71,23 @@ RUN go build -o /opt/get-version -ldflags "-X github.com/coder/coder/v2/buildinf
 
 # Alternative: Build agent binaries from source (uncomment to use)
 RUN mkdir -p /src/site/out/bin && \
-    for arch in amd64 arm64 armv7; do \
+    for arch in amd64 arm64 arm; do \
         export GOOS=linux GOARCH=$arch CGO_ENABLED=0; \
-        if [ "$arch" = "armv7" ]; then export GOARM=7; fi; \
-        go build -tags "embed" \
+        if [ "$arch" = "arm" ]; then export GOARM=7; fi; \
+        go build -tags "embed" -buildvcs=false \
             -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=${VERSION} -s -w" \
             -o "/src/site/out/bin/coder-linux-$arch" \
             ./enterprise/cmd/coder; \
     done && \
+    # Rename arm binary to armv7 for compatibility
+    if [ -f "/src/site/out/bin/coder-linux-arm" ]; then \
+        mv "/src/site/out/bin/coder-linux-arm" "/src/site/out/bin/coder-linux-armv7"; \
+    fi && \
     cd /src/site/out/bin && \
     openssl dgst -r -sha1 coder-linux-* | tee coder.sha1
 
 # Build the Go binary with embed tag
-RUN go build -tags "embed" \
+RUN go build -tags "embed" -buildvcs=false \
     -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=$VERSION -s -w" \
     -o /opt/coder \
     ./enterprise/cmd/coder && \
