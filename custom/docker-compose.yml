@@ -2,7 +2,7 @@ services:
   coder:
     build:
       context: ..
-      dockerfile: custom/Dockerfile.build
+      dockerfile: custom/Dockerfile
       args:
         - VERSION=${VERSION:-latest}
         - ARCH=${ARCH:-amd64}
