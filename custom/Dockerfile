@@ -98,10 +98,11 @@ RUN mkdir -p /src/site/out/bin && \
     openssl dgst -r -sha1 coder-* | tee coder.sha1
 
 # Build the Go binary with embed tag
-RUN go build -tags "embed" -buildvcs=false \
-    -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=$VERSION -s -w" \
-    -o /opt/coder \
-    ./enterprise/cmd/coder && \
+RUN export TS_EXTRA_SMALL="ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube" && \
+    go build -tags "embed,$TS_EXTRA_SMALL" -buildvcs=false \
+        -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=$VERSION -s -w" \
+        -o /opt/coder \
+        ./enterprise/cmd/coder && \
     chmod +x /opt/coder
 
 # Final stage
