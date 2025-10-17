@@ -69,8 +69,9 @@ RUN go build -o /opt/get-version -ldflags "-X github.com/coder/coder/v2/buildinf
 #     cd /src/site/out/bin && \
 #     openssl dgst -r -sha1 coder-linux-* | tee coder.sha1
 
-# Alternative: Build agent binaries from source (uncomment to use)
+# Build Linux binaries from source, download Windows binary
 RUN mkdir -p /src/site/out/bin && \
+    # Build Linux binaries
     for arch in amd64 arm64 arm; do \
         export GOOS=linux GOARCH=$arch CGO_ENABLED=0; \
         if [ "$arch" = "arm" ]; then export GOARM=7; fi; \
@@ -83,8 +84,18 @@ RUN mkdir -p /src/site/out/bin && \
     if [ -f "/src/site/out/bin/coder-linux-arm" ]; then \
         mv "/src/site/out/bin/coder-linux-arm" "/src/site/out/bin/coder-linux-armv7"; \
     fi && \
+    # Download Windows binary from GitHub releases
+    echo "Downloading Windows binary from GitHub releases..." && \
+    # Strip any development suffix to get the base version
+    DOWNLOAD_VERSION=$(echo "${VERSION}" | sed 's/-devel+.*//') && \
+    echo "Downloading Windows binary for version: ${DOWNLOAD_VERSION}" && \
+    # Download the zip file and extract the exe
+    wget -O "/tmp/coder-windows.zip" "https://github.com/coder/coder/releases/download/v${DOWNLOAD_VERSION}/coder_${DOWNLOAD_VERSION}_windows_amd64.zip" && \
+    cd /tmp && \
+    unzip -j "coder-windows.zip" "coder.exe" && \
+    mv "coder.exe" "/src/site/out/bin/coder-windows-amd64.exe" && \
     cd /src/site/out/bin && \
-    openssl dgst -r -sha1 coder-linux-* | tee coder.sha1
+    openssl dgst -r -sha1 coder-* | tee coder.sha1
 
 # Build the Go binary with embed tag
 RUN go build -tags "embed" -buildvcs=false \
