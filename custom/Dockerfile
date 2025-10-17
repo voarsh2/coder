@@ -69,27 +69,23 @@ RUN go build -o /opt/get-version -ldflags "-X github.com/coder/coder/v2/buildinf
 #     cd /src/site/out/bin && \
 #     openssl dgst -r -sha1 coder-linux-* | tee coder.sha1
 
-# Build Linux binaries from source, download Windows binary
+# Download all binaries from GitHub releases (official binaries)
 RUN mkdir -p /src/site/out/bin && \
-    # Build Linux binaries
-    for arch in amd64 arm64 arm; do \
-        export GOOS=linux GOARCH=$arch CGO_ENABLED=0; \
-        if [ "$arch" = "arm" ]; then export GOARM=7; fi; \
-        go build -tags "embed" -buildvcs=false \
-            -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=${VERSION} -s -w" \
-            -o "/src/site/out/bin/coder-linux-$arch" \
-            ./enterprise/cmd/coder; \
-    done && \
-    # Rename arm binary to armv7 for compatibility
-    if [ -f "/src/site/out/bin/coder-linux-arm" ]; then \
-        mv "/src/site/out/bin/coder-linux-arm" "/src/site/out/bin/coder-linux-armv7"; \
-    fi && \
-    # Download Windows binary from GitHub releases
-    echo "Downloading Windows binary from GitHub releases..." && \
     # Strip any development suffix to get the base version
     DOWNLOAD_VERSION=$(echo "${VERSION}" | sed 's/-devel+.*//') && \
-    echo "Downloading Windows binary for version: ${DOWNLOAD_VERSION}" && \
-    # Download the zip file and extract the exe
+    echo "Downloading binaries for version: ${DOWNLOAD_VERSION}" && \
+    # Download Linux binaries
+    wget -O "/src/site/out/bin/coder-linux-amd64.tar.gz" "https://github.com/coder/coder/releases/download/v${DOWNLOAD_VERSION}/coder_${DOWNLOAD_VERSION}_linux_amd64.tar.gz" && \
+    cd /src/site/out/bin && \
+    tar -xzf "coder-linux-amd64.tar.gz" && \
+    rm "coder-linux-amd64.tar.gz" && \
+    wget -O "/src/site/out/bin/coder-linux-arm64.tar.gz" "https://github.com/coder/coder/releases/download/v${DOWNLOAD_VERSION}/coder_${DOWNLOAD_VERSION}_linux_arm64.tar.gz" && \
+    tar -xzf "coder-linux-arm64.tar.gz" && \
+    rm "coder-linux-arm64.tar.gz" && \
+    wget -O "/src/site/out/bin/coder-linux-armv7.tar.gz" "https://github.com/coder/coder/releases/download/v${DOWNLOAD_VERSION}/coder_${DOWNLOAD_VERSION}_linux_armv7.tar.gz" && \
+    tar -xzf "coder-linux-armv7.tar.gz" && \
+    rm "coder-linux-armv7.tar.gz" && \
+    # Download Windows binary
     wget -O "/tmp/coder-windows.zip" "https://github.com/coder/coder/releases/download/v${DOWNLOAD_VERSION}/coder_${DOWNLOAD_VERSION}_windows_amd64.zip" && \
     cd /tmp && \
     unzip -j "coder-windows.zip" "coder.exe" && \
