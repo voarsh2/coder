@@ -52,35 +52,29 @@ COPY . .
 # Copy the frontend from the frontend builder stage
 COPY --from=frontend-builder /src/site/out ./site/out
 
-# Build a helper binary to get the version
-RUN go build -o /opt/get-version -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=${VERSION}" ./cmd/coder/version 2>/dev/null || \
-    echo "package main; import \"fmt\"; import \"github.com/coder/coder/v2/buildinfo\"; func main() { fmt.Print(buildinfo.Version()) }" > /tmp/get-version.go && \
-    go build -o /opt/get-version -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=${VERSION}" /tmp/get-version.go
-
-# Download official agent binaries (default approach)
+# Build agent binaries from source
 RUN mkdir -p /src/site/out/bin && \
-    BINARY_VERSION=$(/opt/get-version) && \
-    DOWNLOAD_VERSION=$(echo "${BINARY_VERSION}" | sed 's/-devel+.*//') && \
-    echo "Binary version: ${BINARY_VERSION}" && \
-    echo "Download version: ${DOWNLOAD_VERSION}" && \
-    wget -O "/src/site/out/bin/coder-linux-amd64" "https://github.com/coder/coder/releases/download/${DOWNLOAD_VERSION}/coder-linux-amd64" && \
-    wget -O "/src/site/out/bin/coder-linux-arm64" "https://github.com/coder/coder/releases/download/${DOWNLOAD_VERSION}/coder-linux-arm64" && \
-    wget -O "/src/site/out/bin/coder-linux-armv7" "https://github.com/coder/coder/releases/download/${DOWNLOAD_VERSION}/coder-linux-armv7" && \
+    for arch in amd64 arm64 arm; do \
+        export GOOS=linux GOARCH=$arch CGO_ENABLED=0; \
+        if [ "$arch" = "arm" ]; then export GOARM=7; fi; \
+        go build -tags "embed" -buildvcs=false \
+            -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=${VERSION} -s -w" \
+            -o "/src/site/out/bin/coder-linux-$arch" \
+            ./enterprise/cmd/coder; \
+    done && \
+    if [ -f "/src/site/out/bin/coder-linux-arm" ]; then \
+        mv "/src/site/out/bin/coder-linux-arm" "/src/site/out/bin/coder-linux-armv7"; \
+    fi && \
+    echo "Downloading Windows binary from GitHub releases..." && \
+    DOWNLOAD_VERSION=$(echo "${VERSION}" | sed 's/-devel+.*//') && \
+    echo "Downloading Windows binary for version: ${DOWNLOAD_VERSION}" && \
+    wget -O "/tmp/coder-windows.zip" "https://github.com/coder/coder/releases/download/v${DOWNLOAD_VERSION}/coder_${DOWNLOAD_VERSION}_windows_amd64.zip" && \
+    cd /tmp && \
+    unzip -j "coder-windows.zip" "coder.exe" && \
+    mv "coder.exe" "/src/site/out/bin/coder-windows-amd64.exe" && \
     cd /src/site/out/bin && \
-    openssl dgst -r -sha1 coder-linux-* | tee coder.sha1
+    openssl dgst -r -sha1 coder-* | tee coder.sha1
 
-# Alternative: Build agent binaries from source (uncomment to use)
-# RUN mkdir -p /src/site/out/bin && \
-#     for arch in amd64 arm64 armv7; do \
-#         export GOOS=linux GOARCH=$arch CGO_ENABLED=0; \
-#         if [ "$arch" = "armv7" ]; then export GOARM=7; fi; \
-#         go build -tags "embed" \
-#             -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=${VERSION} -s -w" \
-#             -o "/src/site/out/bin/coder-linux-$arch" \
-#             ./enterprise/cmd/coder; \
-#     done && \
-#     cd /src/site/out/bin && \
-#     openssl dgst -r -sha1 coder-linux-* | tee coder.sha1
 
 # Build the Go binary with embed tag
 RUN go build -tags "embed" \

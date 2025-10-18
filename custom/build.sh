@@ -199,12 +199,15 @@ build_binary() {
     pnpm install --frozen-lockfile
     pnpm build
     cd ..
-    
+
+    # Build agent binaries BEFORE building the main Go binary so they can be embedded
+    build_agent_binaries
+
     # Set build environment variables
     export GOOS=linux
     export GOARCH="$ARCH"
     export CGO_ENABLED=0
-    
+
     # Build the binary
     BINARY_PATH="$SCRIPT_DIR/coder_linux_$ARCH"
     if [ "$ARCH" = "amd64" ]; then
@@ -215,110 +218,64 @@ build_binary() {
         BINARY_PATH="$SCRIPT_DIR/coder_linux_armv7"
         export GOARM=7
     fi
-    
+
     log_info "Building binary at $BINARY_PATH..."
-    
+
     go build -tags "embed" \
         -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=$VERSION -s -w" \
         -o "$BINARY_PATH" \
         ./enterprise/cmd/coder
-    
+
     if [ $? -eq 0 ]; then
-        log_info "Go binary with frontend built successfully"
-        
-        # Download agent binaries for all architectures
-        download_agent_binaries
-        
-        # Alternative: build from source (uncomment to use)
-        # build_agent_binaries
+        log_info "Go binary with frontend and agent binaries built successfully"
     else
         log_error "Failed to build Go binary with frontend"
         exit 1
     fi
 }
 
-# Download official agent binaries for all architectures
-download_agent_binaries() {
-    log_info "Downloading official agent binaries..."
-    
+# Build agent binaries for all architectures
+build_agent_binaries() {
+    log_info "Building agent binaries for all architectures..."
+
     cd "$REPO_ROOT"
-    
+
     # Create the output directory
     mkdir -p site/out/bin
-    
-    # Get the version from the built binary
-    log_info "Getting version from built binary..."
-    BINARY_VERSION=$("$BINARY_PATH" version 2>/dev/null || echo "v$VERSION")
-    # Strip development suffix to get a clean version for downloading
-    DOWNLOAD_VERSION=$(echo "$BINARY_VERSION" | sed 's/-devel+.*//')
-    log_info "Binary version: $BINARY_VERSION"
-    log_info "Download version: $DOWNLOAD_VERSION"
-    
-    # Download official binaries for all architectures
-    log_info "Downloading amd64 binary..."
-    wget -O "site/out/bin/coder-linux-amd64" "https://github.com/coder/coder/releases/download/$DOWNLOAD_VERSION/coder-linux-amd64" || {
-        log_error "Failed to download amd64 binary"
-        exit 1
-    }
-    
-    log_info "Downloading arm64 binary..."
-    wget -O "site/out/bin/coder-linux-arm64" "https://github.com/coder/coder/releases/download/$DOWNLOAD_VERSION/coder-linux-arm64" || {
-        log_error "Failed to download arm64 binary"
-        exit 1
-    }
-    
-    log_info "Downloading armv7 binary..."
-    wget -O "site/out/bin/coder-linux-armv7" "https://github.com/coder/coder/releases/download/$DOWNLOAD_VERSION/coder-linux-armv7" || {
-        log_error "Failed to download armv7 binary"
-        exit 1
-    }
-    
+
+    # Build binaries for all architectures (matching Dockerfile approach)
+    for arch in amd64 arm64 arm; do
+        log_info "Building agent binary for linux/$arch..."
+
+        # Set architecture-specific variables
+        export GOOS=linux
+        export GOARCH=$arch
+        export CGO_ENABLED=0
+
+        # Set GOARM for arm architecture
+        if [ "$arch" = "arm" ]; then
+            export GOARM=7
+        fi
+
+        go build -tags "embed" -buildvcs=false \
+            -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=$VERSION -s -w" \
+            -o "site/out/bin/coder-linux-$arch" \
+            ./enterprise/cmd/coder
+    done
+
+    # Rename arm to armv7 to match expected naming
+    if [ -f "site/out/bin/coder-linux-arm" ]; then
+        mv "site/out/bin/coder-linux-arm" "site/out/bin/coder-linux-armv7"
+    fi
+
     # Generate SHA1 hashes
     log_info "Generating SHA1 hashes..."
     cd site/out/bin
     openssl dgst -r -sha1 coder-linux-* | tee coder.sha1
     cd "$REPO_ROOT"
-    
-    log_info "Agent binaries downloaded successfully"
-}
 
-# Build agent binaries for all architectures (commented out - alternative approach)
-# build_agent_binaries() {
-#     log_info "Building agent binaries for all architectures..."
-#
-#     cd "$REPO_ROOT"
-#
-#     # Create the output directory
-#     mkdir -p site/out/bin
-#
-#     # Build binaries for all architectures
-#     for arch in amd64 arm64 armv7; do
-#         log_info "Building agent binary for linux/$arch..."
-#
-#         # Set architecture-specific variables
-#         export GOOS=linux
-#         export GOARCH=$arch
-#         export CGO_ENABLED=0
-#
-#         # Build the binary
-#         if [ "$arch" = "armv7" ]; then
-#             export GOARM=7
-#         fi
-#
-#         go build -tags "embed" \
-#             -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=$VERSION -s -w" \
-#             -o "site/out/bin/coder-linux-$arch" \
-#             ./enterprise/cmd/coder
-#     done
-#
-#     # Generate SHA1 hashes
-#     log_info "Generating SHA1 hashes..."
-#     cd site/out/bin
-#     openssl dgst -r -sha1 coder-linux-* | tee coder.sha1
-#     cd "$REPO_ROOT"
-#
-#     log_info "Agent binaries built successfully"
-# }
+    log_info "Agent binaries built successfully"
+}
 
 # Build the Docker image using the built binary
 build_docker_image() {
