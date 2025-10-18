@@ -221,7 +221,7 @@ build_binary() {
 
     log_info "Building binary at $BINARY_PATH..."
 
-    go build -tags "embed" \
+    go build -tags "embed" -buildvcs=false \
         -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=$VERSION -s -w" \
         -o "$BINARY_PATH" \
         ./enterprise/cmd/coder
