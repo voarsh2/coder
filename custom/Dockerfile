@@ -57,7 +57,7 @@ RUN mkdir -p /src/site/out/bin && \
     for arch in amd64 arm64 arm; do \
         export GOOS=linux GOARCH=$arch CGO_ENABLED=0; \
         if [ "$arch" = "arm" ]; then export GOARM=7; fi; \
-        go build -tags "embed" \
+        go build -tags "embed" -buildvcs=false \
             -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=${VERSION} -s -w" \
             -o "/src/site/out/bin/coder-linux-$arch" \
             ./enterprise/cmd/coder; \
