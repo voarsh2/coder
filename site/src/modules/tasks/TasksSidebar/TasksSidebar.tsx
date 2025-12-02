@@ -1,8 +1,7 @@
 import { API } from "api/api";
-import { getErrorDetail, getErrorMessage } from "api/errors";
-import { cva } from "class-variance-authority";
+import { getErrorMessage } from "api/errors";
+import type { Task, TasksFilter } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -10,10 +9,10 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import { ScrollArea } from "components/ScrollArea/ScrollArea";
 import { Skeleton } from "components/Skeleton/Skeleton";
+import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
 import {
 	Tooltip,
 	TooltipContent,
@@ -23,17 +22,18 @@ import {
 import { useAuthenticated } from "hooks";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import { EditIcon, EllipsisIcon, PanelLeftIcon, TrashIcon } from "lucide-react";
-import type { Task } from "modules/tasks/tasks";
 import { type FC, useState } from "react";
-import { QueryClient, useMutation, useQuery } from "react-query";
+import { useQuery } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
 import { cn } from "utils/cn";
+import { TaskDeleteDialog } from "../TaskDeleteDialog/TaskDeleteDialog";
+import { taskStatusToStatusIndicatorVariant } from "../TaskStatus/TaskStatus";
 import { UserCombobox } from "./UserCombobox";
 
 export const TasksSidebar: FC = () => {
 	const { user, permissions } = useAuthenticated();
-	const usernameParam = useSearchParamsKey({
-		key: "username",
+	const ownerParam = useSearchParamsKey({
+		key: "owner",
 		defaultValue: user.username,
 	});
 
@@ -43,11 +43,11 @@ export const TasksSidebar: FC = () => {
 		<div
 			className={cn(
 				"h-full bg-surface-secondary w-full max-w-80",
-				"border-solid border-0 border-r transition-all",
+				"border-solid border-0 border-r transition-all flex flex-col",
 				{ "max-w-14": isCollapsed },
 			)}
 		>
-			<div className="p-3 flex flex-col flex-1 gap-6">
+			<div className="p-3 flex flex-col gap-6">
 				<div className="flex items-center place-content-between">
 					{!isCollapsed && (
 						<Button
@@ -110,29 +110,29 @@ export const TasksSidebar: FC = () => {
 
 				{!isCollapsed && permissions.viewAllUsers && (
 					<UserCombobox
-						value={usernameParam.value}
+						value={ownerParam.value}
 						onValueChange={(username) => {
-							if (username === usernameParam.value) {
-								usernameParam.setValue("");
+							if (username === ownerParam.value) {
+								ownerParam.setValue("");
 								return;
 							}
-							usernameParam.setValue(username);
+							ownerParam.setValue(username);
 						}}
 					/>
 				)}
 			</div>
 
-			{!isCollapsed && <TasksSidebarGroup username={usernameParam.value} />}
+			{!isCollapsed && <TasksSidebarGroup owner={ownerParam.value} />}
 		</div>
 	);
 };
 
 type TasksSidebarGroupProps = {
-	username: string;
+	owner: string;
 };
 
-const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ username }) => {
-	const filter = { username };
+const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ owner }) => {
+	const filter: TasksFilter = { owner };
 	const tasksQuery = useQuery({
 		queryKey: ["tasks", filter],
 		queryFn: () => API.experimental.getTasks(filter),
@@ -140,14 +140,14 @@ const TasksSidebarGroup: FC<TasksSidebarGroupProps> = ({ username }) => {
 	});
 
 	return (
-		<ScrollArea>
+		<ScrollArea className="flex-1">
 			<div className="flex flex-col gap-2 p-3">
 				<div className="text-content-secondary text-xs">Tasks</div>
 				<div className="flex flex-col flex-1 gap-1">
 					{tasksQuery.data ? (
 						tasksQuery.data.length > 0 ? (
-							tasksQuery.data.map((t) => (
-								<TaskSidebarMenuItem key={t.workspace.id} task={t} />
+							tasksQuery.data.map((task) => (
+								<TaskSidebarMenuItem key={task.id} task={task} />
 							))
 						) : (
 							<div className="text-content-secondary text-xs p-4 border-border border-solid rounded text-center">
@@ -176,18 +176,10 @@ type TaskSidebarMenuItemProps = {
 };
 
 const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
-	const { workspace } = useParams<{ workspace: string }>();
-	const isActive = task.workspace.name === workspace;
+	const { taskId } = useParams<{ taskId: string }>();
+	const isActive = task.id === taskId;
 	const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 	const navigate = useNavigate();
-	const queryClient = new QueryClient();
-	const deleteTaskMutation = useMutation({
-		mutationFn: () =>
-			API.experimental.deleteTask(task.workspace.owner_name, task.workspace.id),
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["tasks"] });
-		},
-	});
 
 	return (
 		<>
@@ -206,12 +198,12 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 			>
 				<RouterLink
 					to={{
-						pathname: `/tasks/${task.workspace.owner_name}/${task.workspace.name}`,
+						pathname: `/tasks/${task.owner_name}/${task.id}`,
 						search: window.location.search,
 					}}
 				>
 					<TaskSidebarMenuItemStatus task={task} />
-					<span className="truncate">{task.workspace.name}</span>
+					<span className="truncate">{task.name}</span>
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
@@ -249,75 +241,34 @@ const TaskSidebarMenuItem: FC<TaskSidebarMenuItemProps> = ({ task }) => {
 				</RouterLink>
 			</Button>
 
-			<ConfirmDialog
-				type="delete"
-				confirmLoading={deleteTaskMutation.isPending}
+			<TaskDeleteDialog
 				open={isDeleteDialogOpen}
-				title="Delete task"
-				onClose={(): void => {
+				task={task}
+				onClose={() => {
 					setIsDeleteDialogOpen(false);
 				}}
-				onConfirm={async () => {
-					try {
-						await deleteTaskMutation.mutateAsync();
-						displaySuccess("Task deleted successfully");
-						if (isActive) {
-							navigate("/tasks");
-						}
-					} catch (error) {
-						displayError(
-							getErrorMessage(error, "Failed to delete task"),
-							getErrorDetail(error),
-						);
-					} finally {
-						setIsDeleteDialogOpen(false);
+				onSuccess={() => {
+					if (isActive) {
+						navigate("/tasks");
 					}
 				}}
-				description={
-					<p>
-						This action is irreversible and removes all workspace resources and
-						data.
-					</p>
-				}
 			/>
 		</>
 	);
 };
 
-const taskStatusVariants = cva("block size-2 rounded-full shrink-0", {
-	variants: {
-		state: {
-			default: "border border-content-secondary border-solid",
-			complete: "bg-content-success",
-			failure: "bg-content-destructive",
-			idle: "bg-content-secondary",
-			working: "bg-highlight-sky",
-		},
-	},
-	defaultVariants: {
-		state: "default",
-	},
-});
-
 const TaskSidebarMenuItemStatus: FC<{ task: Task }> = ({ task }) => {
-	const statusText = task.workspace.latest_app_status
-		? task.workspace.latest_app_status.state
-		: "No activity yet";
-
 	return (
 		<TooltipProvider>
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<div
-						className={taskStatusVariants({
-							state: task.workspace.latest_app_status?.state ?? "default",
-						})}
-					>
-						<span className="sr-only">{statusText}</span>
-					</div>
+					<StatusIndicatorDot
+						variant={taskStatusToStatusIndicatorVariant[task.status]}
+						aria-label={task.status}
+					/>
 				</TooltipTrigger>
 				<TooltipContent className="first-letter:capitalize">
-					{statusText}
+					{task.status}
 				</TooltipContent>
 			</Tooltip>
 		</TooltipProvider>

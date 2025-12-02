@@ -170,7 +170,7 @@ func (s *server) Plan(
 
 	// Prepend init timings since they occur prior to plan timings.
 	// Order is irrelevant; this is merely indicative.
-	resp.Timings = append(initTimings.aggregate(), resp.Timings...)
+	resp.Timings = mergeInitTimings(initTimings.aggregate(), resp.Timings)
 	resp.Modules = modules
 	return resp
 }
@@ -266,6 +266,8 @@ func provisionEnv(
 		"CODER_WORKSPACE_TEMPLATE_NAME="+metadata.GetTemplateName(),
 		"CODER_WORKSPACE_TEMPLATE_VERSION="+metadata.GetTemplateVersion(),
 		"CODER_WORKSPACE_BUILD_ID="+metadata.GetWorkspaceBuildId(),
+		"CODER_TASK_ID="+metadata.GetTaskId(),
+		"CODER_TASK_PROMPT="+metadata.GetTaskPrompt(),
 	)
 	if metadata.GetPrebuiltWorkspaceBuildStage().IsPrebuild() {
 		env = append(env, provider.IsPrebuildEnvironmentVariable()+"=true")

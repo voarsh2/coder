@@ -324,11 +324,19 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 		// rbacResourceOwned is for the level "authenticated". We still need to
 		// make sure the API key has permissions to connect to the actor's own
 		// workspace. Scopes would prevent this.
-		rbacResourceOwned rbac.Object = rbac.ResourceWorkspace.WithOwner(roles.ID)
+		// TODO: This is an odd repercussion of the org_member permission level.
+		// This Object used to not specify an org restriction, and `InOrg` would
+		// actually have a significantly different meaning (only sharing with
+		// other authenticated users in the same org, whereas the existing behavior
+		// is to share with any authenticated user). Because workspaces are always
+		// jointly owned by an organization, there _must_ be an org restriction on
+		// the object to check the proper permissions. AnyOrg is almost the same,
+		// but technically excludes users who are not in any organization. This is
+		// the closest we can get though without more significant refactoring.
+		rbacResourceOwned rbac.Object = rbac.ResourceWorkspace.WithOwner(roles.ID).AnyOrganization()
 	)
 	if dbReq.AccessMethod == AccessMethodTerminal {
 		rbacAction = policy.ActionSSH
-		rbacResourceOwned = rbac.ResourceWorkspace.WithOwner(roles.ID)
 	}
 
 	// Do a standard RBAC check. This accounts for share level "owner" and any
@@ -355,21 +363,20 @@ func (p *DBTokenProvider) authorizeRequest(ctx context.Context, roles *rbac.Subj
 			return true, []string{}, nil
 		}
 	case database.AppSharingLevelOrganization:
-		// Check if the user is a member of the same organization as the workspace
 		// First check if they have permission to connect to their own workspace (enforces scopes)
 		err := p.Authorizer.Authorize(ctx, *roles, rbacAction, rbacResourceOwned)
 		if err != nil {
 			return false, warnings, nil
 		}
 
-		// Check if the user is a member of the workspace's organization
+		// Check if the user is a member of the same organization as the workspace
 		workspaceOrgID := dbReq.Workspace.OrganizationID
 		expandedRoles, err := roles.Roles.Expand()
 		if err != nil {
 			return false, warnings, xerrors.Errorf("expand roles: %w", err)
 		}
 		for _, role := range expandedRoles {
-			if _, ok := role.Org[workspaceOrgID.String()]; ok {
+			if _, ok := role.ByOrgID[workspaceOrgID.String()]; ok {
 				return true, []string{}, nil
 			}
 		}

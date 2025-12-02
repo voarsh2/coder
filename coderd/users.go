@@ -753,6 +753,14 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &params) {
 		return
 	}
+
+	// If caller wants to update user's username, they need "update_users" permission.
+	// This is restricted to user admins only.
+	if params.Username != user.Username && !api.Authorize(r, policy.ActionUpdate, user) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
 	existentUser, err := api.Database.GetUserByEmailOrUsername(ctx, database.GetUserByEmailOrUsernameParams{
 		Username: params.Username,
 	})
@@ -1600,5 +1608,6 @@ func convertAPIKey(k database.APIKey) codersdk.APIKey {
 		Scopes:          scopes,
 		LifetimeSeconds: k.LifetimeSeconds,
 		TokenName:       k.TokenName,
+		AllowList:       db2sdk.List(k.AllowList, db2sdk.APIAllowListTarget),
 	}
 }
