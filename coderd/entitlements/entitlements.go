@@ -40,29 +40,36 @@ func New() *Set {
 		},
 		right2Update: make(chan struct{}, 1),
 	}
-	
+
 	// Check for license bypass environment variable
 	if os.Getenv("CODER_LICENSE_BYPASS") == "true" {
-		// Enable all features with unlimited limits
+		// Enable all features with unlimited limits. However, do not force the
+		// browser_only feature on here; that is controlled by deployment config
+		// and license logic so that bypass does not implicitly enable it.
 		for _, featureName := range codersdk.FeatureNames {
+			enabled := true
+			if featureName == codersdk.FeatureBrowserOnly {
+				enabled = false
+			}
+
 			feature := codersdk.Feature{
 				Entitlement: codersdk.EntitlementEntitled,
-				Enabled: true,
+				Enabled:     enabled,
 			}
-			
+
 			// Set unlimited limits for features that use limits
 			if featureName.UsesLimit() {
 				unlimited := int64(999999)
 				feature.Limit = &unlimited
 			}
-			
+
 			// Set default values for usage period features
 			if featureName.UsesUsagePeriod() {
 				unlimited := int64(999999)
 				feature.Limit = &unlimited
 				feature.SoftLimit = &unlimited
 			}
-			
+
 			s.entitlements.AddFeature(featureName, feature)
 		}
 	} else {
