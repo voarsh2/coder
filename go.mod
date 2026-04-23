@@ -478,7 +478,7 @@ require (
 	github.com/coder/agentapi-sdk-go v0.0.0-20250505131810-560d1d88d225
 	github.com/coder/aibridge v0.1.6
 	github.com/coder/aisdk-go v0.0.9
-	github.com/coder/boundary v0.0.0-20250925154134-55a44f2a7945
+	github.com/coder/boundary v0.0.1-alpha
 	github.com/coder/preview v1.0.4
 	github.com/dgraph-io/ristretto/v2 v2.3.0
 	github.com/fsnotify/fsnotify v1.9.0
