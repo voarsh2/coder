@@ -2,6 +2,7 @@ package entitlements_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -11,6 +12,41 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestNew_DefaultsFailClosed(t *testing.T) {
+	t.Parallel()
+
+	set := entitlements.New()
+	require.False(t, set.HasLicense())
+	for _, featureName := range codersdk.FeatureNames {
+		feature, ok := set.Feature(featureName)
+		require.True(t, ok)
+		require.False(t, feature.Enabled)
+		require.Equal(t, codersdk.EntitlementNotEntitled, feature.Entitlement)
+	}
+}
+
+func TestNew_BypassEnv(t *testing.T) {
+	t.Setenv("CODER_LICENSE_BYPASS", "true")
+
+	set := entitlements.New()
+	require.True(t, set.HasLicense())
+
+	appearance, ok := set.Feature(codersdk.FeatureAppearance)
+	require.True(t, ok)
+	require.True(t, appearance.Enabled)
+	require.Equal(t, codersdk.EntitlementEntitled, appearance.Entitlement)
+
+	browserOnly, ok := set.Feature(codersdk.FeatureBrowserOnly)
+	require.True(t, ok)
+	require.False(t, browserOnly.Enabled)
+	require.Equal(t, codersdk.EntitlementEntitled, browserOnly.Entitlement)
+
+	managedAgents, ok := set.Feature(codersdk.FeatureManagedAgentLimit)
+	require.True(t, ok)
+	require.NotNil(t, managedAgents.Limit)
+	require.NotNil(t, managedAgents.SoftLimit)
+}
 
 func TestModify(t *testing.T) {
 	t.Parallel()
@@ -103,6 +139,19 @@ func TestUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, set.Enabled(codersdk.FeatureMultipleOrganizations))
 	require.True(t, set.Enabled(codersdk.FeatureAppearance))
+}
+
+func TestUpdate_FetchErrorKeepsFailClosedDefaults(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	set := entitlements.New()
+	err := set.Update(ctx, func(_ context.Context) (codersdk.Entitlements, error) {
+		return codersdk.Entitlements{}, errors.New("boom")
+	})
+	require.Error(t, err)
+	require.False(t, set.HasLicense())
+	require.False(t, set.Enabled(codersdk.FeatureAppearance))
 }
 
 func TestUpdate_LicenseRequiresTelemetry(t *testing.T) {

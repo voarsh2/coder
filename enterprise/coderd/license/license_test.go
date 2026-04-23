@@ -865,6 +865,39 @@ func TestEntitlements(t *testing.T) {
 	})
 }
 
+func TestEntitlements_BypassEnv(t *testing.T) {
+	t.Setenv("CODER_LICENSE_BYPASS", "true")
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+
+	enablements := map[codersdk.FeatureName]bool{}
+	for _, featureName := range codersdk.FeatureNames {
+		enablements[featureName] = false
+	}
+	enablements[codersdk.FeatureAuditLog] = true
+	enablements[codersdk.FeatureBrowserOnly] = false
+
+	entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, enablements)
+	require.NoError(t, err)
+	require.True(t, entitlements.HasLicense)
+
+	auditLog, ok := entitlements.Features[codersdk.FeatureAuditLog]
+	require.True(t, ok)
+	require.True(t, auditLog.Enabled)
+	require.Equal(t, codersdk.EntitlementEntitled, auditLog.Entitlement)
+
+	browserOnly, ok := entitlements.Features[codersdk.FeatureBrowserOnly]
+	require.True(t, ok)
+	require.False(t, browserOnly.Enabled)
+	require.Equal(t, codersdk.EntitlementEntitled, browserOnly.Entitlement)
+
+	managedAgents, ok := entitlements.Features[codersdk.FeatureManagedAgentLimit]
+	require.True(t, ok)
+	require.NotNil(t, managedAgents.Limit)
+	require.NotNil(t, managedAgents.SoftLimit)
+}
+
 func TestLicenseEntitlements(t *testing.T) {
 	t.Parallel()
 
