@@ -2,19 +2,19 @@
 
 FROM node:20-alpine AS frontend-builder
 
-RUN npm install -g pnpm
+RUN corepack enable
 
 WORKDIR /src/site
 
 COPY site/package.json site/pnpm-lock.yaml site/.npmrc ./
 
-RUN pnpm install --frozen-lockfile
+RUN corepack pnpm install --frozen-lockfile
 
 COPY site/ ./
 
-RUN pnpm build
+RUN corepack pnpm build
 
-FROM golang:1.25-alpine AS go-builder
+FROM golang:1.25.7-alpine AS go-builder
 
 RUN apk add --no-cache ca-certificates git openssl unzip wget
 

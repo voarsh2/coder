@@ -6,7 +6,7 @@ services:
       args:
         - VERSION=${VERSION:-2.29.10}
         - ARCH=${ARCH:-amd64}
-    image: ${IMAGE_NAME:-coder-custom}:${IMAGE_TAG:-latest}
+    image: ${IMAGE_NAME:-coder-custom}:${IMAGE_TAG:-2.29.10}
     container_name: coder-custom
     ports:
       - "3000:3000"

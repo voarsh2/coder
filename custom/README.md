@@ -1,26 +1,31 @@
 # Custom Coder Build with License Checking Disabled
 
-This folder contains a custom Docker-based build path for Coder with license bypass changes.
+This folder contains a custom build system for Coder that includes all the necessary components to build a complete Docker image with license checking disabled.
 
 ## Files
 
-- `Dockerfile`: A multi-stage Dockerfile that builds the frontend, compiles the server binary, and assembles the runtime image
-- `docker-compose.yml`: Docker Compose configuration for building and running the custom image
+- `build.sh`: A comprehensive build script that builds both the Go binary and the Docker image
+- `Dockerfile`: A multi-stage Dockerfile that builds the frontend, Go binaries, and final image
+- `docker-compose.yml`: Docker Compose configuration that builds the Go binary and Docker image
+- `.env`: Environment variables for configuration
+- `Makefile`: A Makefile with convenient targets for building and running
 - `README.md`: This file with documentation
 
 ## Prerequisites
 
+- Go 1.25.7 or later (for host builds)
 - Docker with buildx support
+- Make (optional, for using the official build system)
 
 ## Usage
 
 ### Option 1: Using Docker Compose (Recommended)
 
-The `docker-compose.yml` file is configured to build the frontend, compile the Go binary, and assemble the final Docker image using `custom/Dockerfile`.
+The `docker-compose.yml` file builds the image from source using `custom/Dockerfile` and starts Coder with PostgreSQL.
 
 ```bash
 cd custom
-docker-compose up --build
+docker compose up --build
 ```
 
 This will:
@@ -29,40 +34,75 @@ This will:
 3. Start both Coder and a PostgreSQL database
 4. Make Coder available at `http://localhost:3000`
 
+### Option 2: Using the Build Script
+
+```bash
+cd custom
+chmod +x build.sh
+./build.sh
+docker run -p 3000:3000 coder-custom:latest
+```
+
+### Option 3: Using the Makefile
+
+```bash
+cd custom
+make build
+make run-compose
+```
+
 ## Configuration
 
 You can customize the build by modifying the `.env` file or by passing environment variables:
 
 ```bash
 # Build for a different architecture
-ARCH=arm64 docker-compose up --build
+ARCH=arm64 docker compose up --build
 
 # Use a custom version
-VERSION=v2.0.0 docker-compose up --build
+VERSION=2.29.10 docker compose up --build
 
 # Override multiple settings
-docker-compose --env-file .env.custom up --build
+docker compose --env-file .env.custom up --build
 ```
 
 ## Build Process
 
-When using `docker-compose up --build`, the following happens:
+### Docker Compose Build Process
 
-1. **Frontend Build**: Docker builds the site assets with Node.js and pnpm.
-2. **Go Binary Build**: Docker compiles the embedded Coder binary and supporting agent binaries.
-3. **Docker Image Build**: Docker assembles the final runtime image from `ghcr.io/coder/coder-base:latest`.
-4. **Container Startup**: Docker Compose starts the containers.
+When using `docker compose up --build`, the following happens:
+
+1. **Go Binary Build**: Docker builds the Go binary using `Dockerfile`
+   - Uses a Go 1.25.7 Alpine image as the builder
+   - Downloads dependencies
+   - Builds the binary with your license modifications
+   - Outputs the binary to `/opt/coder`
+
+2. **Docker Image Build**: Docker creates the final image
+   - Uses the official Coder base image
+   - Copies the binary from the builder stage
+   - Sets up proper permissions and user
+   - Configures the entrypoint
+
+3. **Container Startup**: Docker Compose starts the containers
    - Starts the PostgreSQL database
    - Starts Coder with the database connection
    - Exposes port 3000 for access
 
+### Standalone Build Script Process
+
+The `build.sh` script follows a similar process but builds the binary on the host machine:
+
+1. **Go Binary Build**: Builds the Go binary using the host's Go toolchain
+2. **Docker Image Build**: Builds a Docker image using the pre-built binary
+
 ## License Modifications
 
-This custom build includes the following modifications to disable license checking:
+This custom build includes the following modifications to support the `CODER_LICENSE_BYPASS=true` development mode:
 
-1. **Default Entitlements**: Modified `coderd/entitlements/entitlements.go` to set all features as entitled by default
-2. **Feature Disablement**: Commented out the code in `enterprise/coderd/license/license.go` that disables non-entitled features
-3. **Bypass Mode**: `CODER_LICENSE_BYPASS=true` enables the bypass-oriented entitlement path in the server
+1. **License bypass**: `enterprise/coderd/license/license.go` generates entitled features when the environment variable is enabled
+2. **Deployment configuration**: Per-feature enablement flags are still respected
+3. **Managed agent checks**: The managed-agent entitlement check is bypassed when the environment variable is enabled
 
 ## Verification
 
@@ -72,7 +112,7 @@ To verify that the license checking has been disabled:
 2. Access the Coder UI at `http://localhost:3000`
 3. Check the `/api/v2/entitlements` endpoint or look for enterprise features in the UI
 
-All enterprise features should be enabled without requiring a license.
+With `CODER_LICENSE_BYPASS=true`, enterprise features are available without a license, subject to deployment-level feature enablement.
 
 ## Troubleshooting
 
@@ -118,7 +158,7 @@ jobs:
     - name: Build Custom Coder
       run: |
         cd custom
-        docker-compose build
+        docker compose build
 
     - name: Push to Registry
       if: github.ref == 'refs/heads/main'
