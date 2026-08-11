@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -997,7 +998,7 @@ func (api *API) CheckBuildUsage(
 		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 	}
 
-	if !api.Entitlements.HasLicense() {
+	if os.Getenv("CODER_LICENSE_BYPASS") != "true" && !api.Entitlements.HasLicense() {
 		return wsbuilder.UsageCheckResponse{Permitted: true}, nil
 	}
 

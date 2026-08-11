@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"time"
 
@@ -32,6 +33,14 @@ func Entitlements(
 	enablements map[codersdk.FeatureName]bool,
 ) (codersdk.Entitlements, error) {
 	now := time.Now()
+
+	// Check for license bypass environment variable. When enabled, we treat all
+	// features as entitled but still respect the per-feature enablement flags
+	// provided by the deployment configuration (e.g. browser_only). This avoids
+	// accidentally forcing features on purely because of license bypass.
+	if os.Getenv("CODER_LICENSE_BYPASS") == "true" {
+		return generateAllFeaturesEnabled(now, enablements), nil
+	}
 
 	// nolint:gocritic // Getting unexpired licenses is a system function.
 	licenses, err := db.GetUnexpiredLicenses(dbauthz.AsSystemRestricted(ctx))
@@ -499,6 +508,50 @@ var (
 )
 
 type Features map[codersdk.FeatureName]int64
+
+// generateAllFeaturesEnabled returns entitlements where all features are
+// considered entitled, but the Enabled flag for each feature is taken from the
+// provided enablements map (deployment configuration). Limits are set to a
+// large value for features that use limits.
+func generateAllFeaturesEnabled(now time.Time, enablements map[codersdk.FeatureName]bool) codersdk.Entitlements {
+	entitlements := codersdk.Entitlements{
+		Features:         make(map[codersdk.FeatureName]codersdk.Feature),
+		Warnings:         []string{},
+		Errors:           []string{},
+		HasLicense:       true,
+		Trial:            false,
+		RequireTelemetry: false,
+		RefreshedAt:      now,
+	}
+
+	for _, featureName := range codersdk.FeatureNames {
+		enabled := true
+		if enablements != nil {
+			if v, ok := enablements[featureName]; ok {
+				enabled = v
+			}
+		}
+
+		feature := codersdk.Feature{
+			Entitlement: codersdk.EntitlementEntitled,
+			Enabled:     enabled,
+		}
+
+		if featureName.UsesLimit() {
+			unlimited := int64(999999)
+			feature.Limit = &unlimited
+		}
+		if featureName.UsesUsagePeriod() {
+			unlimited := int64(999999)
+			feature.Limit = &unlimited
+			feature.SoftLimit = &unlimited
+		}
+
+		entitlements.AddFeature(featureName, feature)
+	}
+
+	return entitlements
+}
 
 // Claims is the full set of claims in a license.
 type Claims struct {

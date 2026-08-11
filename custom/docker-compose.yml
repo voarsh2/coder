@@ -1,0 +1,43 @@
+services:
+  coder:
+    build:
+      context: ..
+      dockerfile: custom/Dockerfile
+      args:
+        - VERSION=${VERSION:-2.29.10}
+        - ARCH=${ARCH:-amd64}
+    image: ${IMAGE_NAME:-coder-custom}:${IMAGE_TAG:-2.29.10}
+    container_name: coder-custom
+    ports:
+      - "3000:3000"
+    environment:
+      - CODER_ACCESS_URL=${CODER_ACCESS_URL:-http://localhost:3000}
+      - CODER_PG_CONNECTION_URL=${CODER_PG_CONNECTION_URL:-postgresql://coder:password@postgres:5432/coder?sslmode=disable}
+      - CODER_LICENSE_BYPASS=true
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - coder-network
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: coder-postgres
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-coder}
+      - POSTGRES_USER=${POSTGRES_USER:-coder}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - coder-network
+
+volumes:
+  postgres-data:
+
+networks:
+  coder-network:
+    driver: bridge
