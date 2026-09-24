@@ -895,7 +895,7 @@ func TestEntitlements_BypassEnv(t *testing.T) {
 	managedAgents, ok := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 	require.True(t, ok)
 	require.NotNil(t, managedAgents.Limit)
-	require.NotNil(t, managedAgents.SoftLimit)
+	require.NotNil(t, managedAgents.UsagePeriod)
 }
 
 func TestLicenseEntitlements(t *testing.T) {

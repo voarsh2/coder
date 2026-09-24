@@ -26,28 +26,6 @@ func TestNew_DefaultsFailClosed(t *testing.T) {
 	}
 }
 
-func TestNew_BypassEnv(t *testing.T) {
-	t.Setenv("CODER_LICENSE_BYPASS", "true")
-
-	set := entitlements.New()
-	require.True(t, set.HasLicense())
-
-	appearance, ok := set.Feature(codersdk.FeatureAppearance)
-	require.True(t, ok)
-	require.True(t, appearance.Enabled)
-	require.Equal(t, codersdk.EntitlementEntitled, appearance.Entitlement)
-
-	browserOnly, ok := set.Feature(codersdk.FeatureBrowserOnly)
-	require.True(t, ok)
-	require.False(t, browserOnly.Enabled)
-	require.Equal(t, codersdk.EntitlementEntitled, browserOnly.Entitlement)
-
-	managedAgents, ok := set.Feature(codersdk.FeatureManagedAgentLimit)
-	require.True(t, ok)
-	require.NotNil(t, managedAgents.Limit)
-	require.NotNil(t, managedAgents.SoftLimit)
-}
-
 func TestModify(t *testing.T) {
 	t.Parallel()
 

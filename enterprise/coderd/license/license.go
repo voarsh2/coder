@@ -543,7 +543,11 @@ func generateAllFeaturesEnabled(now time.Time, enablements map[codersdk.FeatureN
 		if featureName.UsesUsagePeriod() {
 			unlimited := int64(999999)
 			feature.Limit = &unlimited
-			feature.SoftLimit = &unlimited
+			feature.UsagePeriod = &codersdk.UsagePeriod{
+				IssuedAt: now,
+				Start:    now,
+				End:      now.AddDate(100, 0, 0),
+			}
 		}
 
 		entitlements.AddFeature(featureName, feature)
