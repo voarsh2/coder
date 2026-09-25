@@ -242,7 +242,7 @@ build_agent_binaries() {
     # Create the output directory
     mkdir -p site/out/bin
 
-    # Build binaries for all architectures (matching Dockerfile approach)
+    # Build slim child binaries so the final embedded binary does not recursively embed them.
     for arch in amd64 arm64 arm; do
         log_info "Building agent binary for linux/$arch..."
 
@@ -256,7 +256,7 @@ build_agent_binaries() {
             export GOARM=7
         fi
 
-        go build -tags "embed" -buildvcs=false \
+        go build -tags "slim,ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube" -buildvcs=false \
             -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=$VERSION -s -w" \
             -o "site/out/bin/coder-linux-$arch" \
             ./enterprise/cmd/coder

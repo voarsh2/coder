@@ -35,11 +35,12 @@ COPY . .
 
 COPY --from=frontend-builder /src/site/out ./site/out
 
+# Build slim child binaries so the final embedded binary does not recursively embed them.
 RUN mkdir -p /src/site/out/bin && \
     for arch in amd64 arm64 arm; do \
         export GOOS=linux GOARCH=$arch CGO_ENABLED=0; \
         if [ "$arch" = "arm" ]; then export GOARM=7; fi; \
-        go build -tags "embed" -buildvcs=false \
+        go build -tags "slim,ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube" -buildvcs=false \
             -ldflags "-X github.com/coder/coder/v2/buildinfo.tag=${VERSION} -s -w" \
             -o "/src/site/out/bin/coder-linux-$arch" \
             ./enterprise/cmd/coder; \
