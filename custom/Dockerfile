@@ -63,7 +63,7 @@ RUN export TS_EXTRA_SMALL="ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube" &&
         ./enterprise/cmd/coder && \
     chmod +x /opt/coder
 
-FROM ghcr.io/coder/coder-base:latest
+FROM ghcr.io/coder/coder-base:v2.29.10
 
 ARG VERSION=2.29.10
 
