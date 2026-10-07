@@ -530,7 +530,7 @@ func generateAllFeaturesEnabled(now time.Time, enablements map[codersdk.FeatureN
 	for _, featureName := range codersdk.FeatureNames {
 		feature := codersdk.Feature{
 			Entitlement: codersdk.EntitlementEntitled,
-			Enabled:     enablements[featureName] || featureName.AlwaysEnable(),
+			Enabled:     enablements[featureName] || featureName.AlwaysEnable() || featureName == codersdk.FeatureManagedAgentLimit,
 		}
 
 		// Set unlimited limits for features that use limits.

@@ -894,6 +894,7 @@ func TestEntitlements_BypassEnv(t *testing.T) {
 
 	managedAgents, ok := entitlements.Features[codersdk.FeatureManagedAgentLimit]
 	require.True(t, ok)
+	require.True(t, managedAgents.Enabled)
 	require.NotNil(t, managedAgents.Limit)
 	require.NotNil(t, managedAgents.UsagePeriod)
 }
